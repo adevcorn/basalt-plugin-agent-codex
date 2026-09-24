@@ -27,6 +27,9 @@ reasoning effort variants, MCP server wiring, and `--json` event parsing.
 - Reasoning effort variants (`low`, `medium`, `high`, …) via
   `-c model_reasoning_effort=…` (omitted for the default variant — `codex`
   fatally rejects an empty value)
-- MCP tool integration via `-c mcp_servers.basalt.url=…`
+- MCP tool integration via `-c mcp_servers.basalt.url=…`, with
+  `default_tools_approval_mode="approve"` so non-interactive runs don't
+  stall on per-tool approval prompts (every prompt otherwise resolves as
+  "user cancelled"). Writes stay speculative until approved in Basalt.
 - JSONL event parsing (`basalt_agent_parse_line`): `thread.started`,
   `item.started|updated|completed`, `turn.completed|failed`
