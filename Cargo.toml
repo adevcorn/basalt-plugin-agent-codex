@@ -1,6 +1,6 @@
 [package]
 name = "basalt-plugin-codex"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "OpenAI Codex CLI launcher plugin for Basalt with model, reasoning effort, and stream JSON parsing"
 
