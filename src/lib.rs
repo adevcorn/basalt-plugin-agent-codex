@@ -32,52 +32,9 @@ basalt_plugin_meta! {
     activation_events: "",
 }
 
-/// Launch-contract types shared with the Basalt host as JSON.
-///
-/// These mirror `basalt-core/src/agent_metadata.rs`. They intentionally live
-/// here (rather than in `basalt-plugin-sdk`, which no longer exports them) so
-/// the plugin stays self-contained and buildable against the current SDK.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum StandardTool {
-    Read,
-    Write,
-    Execute,
-    Question,
-}
-
-/// A single file to materialize into the agent's workspace before launch.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct AgentWorkspaceFile {
-    pub relative_path: String,
-    pub content: String,
-}
-
-/// Request passed (as JSON) to `basalt_agent_prepare_launch` by the host.
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct AgentLaunchRequest {
-    #[serde(default)]
-    pub mcp_url: Option<String>,
-    #[serde(default)]
-    pub disabled_tools: Vec<StandardTool>,
-    #[serde(default)]
-    pub model: Option<String>,
-    #[serde(default)]
-    pub variant: Option<String>,
-    #[serde(default)]
-    pub workspace_path: Option<String>,
-}
-
-/// Result of launch preparation: extra CLI args, env vars, and workspace files.
-#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct AgentLaunchPreparation {
-    #[serde(default)]
-    pub extra_args: Vec<String>,
-    #[serde(default)]
-    pub env: std::collections::HashMap<String, String>,
-    #[serde(default)]
-    pub workspace_files: Vec<AgentWorkspaceFile>,
-}
+/// Launch-contract types (`StandardTool`, `AgentLaunchRequest`,
+/// `AgentWorkspaceFile`, `AgentLaunchPreparation`) come from
+/// `basalt-plugin-sdk` — no local copies needed.
 
 /// Prompt wrapper baked into the launch templates.
 ///
@@ -399,7 +356,7 @@ pub fn parse_codex_line(line_str: &str, open_entry: u8) -> (u8, Vec<AgentEvent>)
         }
         // Turn success: the end of this agent turn.
         "turn.completed" => {
-            events.push(AgentEvent::SessionEnded { success: true });
+            events.push(AgentEvent::SessionEnded { success: true, error: None });
             return (STATE_NONE, events);
         }
         "turn.failed" => {
@@ -416,7 +373,7 @@ pub fn parse_codex_line(line_str: &str, open_entry: u8) -> (u8, Vec<AgentEvent>)
                 raw_cmd: cleaned.clone(),
                 file_paths: Vec::new(),
             });
-            events.push(AgentEvent::SessionEnded { success: false });
+            events.push(AgentEvent::SessionEnded { success: false, error: Some(cleaned) });
             return (STATE_NONE, events);
         }
         "error" => {
@@ -440,7 +397,7 @@ pub fn parse_codex_line(line_str: &str, open_entry: u8) -> (u8, Vec<AgentEvent>)
                 raw_cmd: cleaned.clone(),
                 file_paths: Vec::new(),
             });
-            events.push(AgentEvent::SessionEnded { success: false });
+            events.push(AgentEvent::SessionEnded { success: false, error: Some(cleaned) });
             return (STATE_NONE, events);
         }
         "item.started" | "item.updated" | "item.completed" => {
@@ -994,7 +951,7 @@ mod tests {
         );
         assert_eq!(evs.len(), 1);
         match &evs[0] {
-            AgentEvent::SessionEnded { success } => assert!(success),
+            AgentEvent::SessionEnded { success, .. } => assert!(success),
             _ => panic!("expected successful SessionEnded"),
         }
 
@@ -1004,7 +961,7 @@ mod tests {
         );
         assert_eq!(evs.len(), 2);
         match &evs[1] {
-            AgentEvent::SessionEnded { success } => assert!(!success),
+            AgentEvent::SessionEnded { success, .. } => assert!(!success),
             _ => panic!("expected failed SessionEnded"),
         }
     }
@@ -1027,7 +984,7 @@ mod tests {
         );
         assert_eq!(evs.len(), 2);
         match &evs[1] {
-            AgentEvent::SessionEnded { success } => assert!(!success),
+            AgentEvent::SessionEnded { success, .. } => assert!(!success),
             _ => panic!("expected failed SessionEnded"),
         }
 
