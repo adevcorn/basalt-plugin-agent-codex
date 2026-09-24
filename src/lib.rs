@@ -783,8 +783,14 @@ pub extern "C" fn basalt_agent_parse_line(
 mod tests {
     use super::*;
 
-    fn reset_open() {
+    /// Serializes tests that share the global `OPEN_TOOLS` state: parallel
+    /// tests would otherwise clear each other's in-flight tool ids.
+    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn reset_open() -> std::sync::MutexGuard<'static, ()> {
+        let guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_open();
+        guard
     }
 
     #[test]
@@ -835,7 +841,7 @@ mod tests {
 
     #[test]
     fn test_parse_thread_started() {
-        reset_open();
+        let _guard = reset_open();
         let line = r#"{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}"#;
         let (state, events) = parse_codex_line(line, STATE_NONE);
         assert_eq!(state, STATE_NONE);
@@ -850,7 +856,7 @@ mod tests {
 
     #[test]
     fn test_parse_command_execution_lifecycle() {
-        reset_open();
+        let _guard = reset_open();
         let started = r#"{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"bash -lc ls","aggregated_output":"","status":"in_progress"}}"#;
         let (st, evs) = parse_codex_line(started, STATE_NONE);
         assert_eq!(st, STATE_NONE);
@@ -880,7 +886,7 @@ mod tests {
 
     #[test]
     fn test_parse_command_completed_without_start() {
-        reset_open();
+        let _guard = reset_open();
         let done = r#"{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"bash -lc false","aggregated_output":"","exit_code":1,"status":"failed"}}"#;
         let (_, evs) = parse_codex_line(done, STATE_NONE);
         assert_eq!(evs.len(), 2);
@@ -893,7 +899,7 @@ mod tests {
 
     #[test]
     fn test_parse_agent_message_stateful() {
-        reset_open();
+        let _guard = reset_open();
         let line = r#"{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Done."}}"#;
         let (st, evs) = parse_codex_line(line, STATE_NONE);
         assert_eq!(st, STATE_MSG_OPEN);
@@ -914,7 +920,7 @@ mod tests {
 
     #[test]
     fn test_parse_reasoning() {
-        reset_open();
+        let _guard = reset_open();
         let line = r#"{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Scanning docs"}}"#;
         let (st, evs) = parse_codex_line(line, STATE_NONE);
         assert_eq!(st, STATE_THOUGHT_OPEN);
@@ -927,7 +933,7 @@ mod tests {
 
     #[test]
     fn test_parse_mcp_tool_call() {
-        reset_open();
+        let _guard = reset_open();
         let started = r#"{"type":"item.started","item":{"id":"item_5","type":"mcp_tool_call","server":"basalt","tool":"read_file","arguments":{"path":"src/lib.rs"},"status":"in_progress"}}"#;
         let (_, evs) = parse_codex_line(started, STATE_NONE);
         assert_eq!(evs.len(), 1);
@@ -955,7 +961,7 @@ mod tests {
 
     #[test]
     fn test_parse_file_change_and_search() {
-        reset_open();
+        let _guard = reset_open();
         let line = r#"{"type":"item.completed","item":{"id":"item_4","type":"file_change","changes":[{"path":"docs/a.md","kind":"add"},{"path":"docs/b.md","kind":"update"}],"status":"completed"}}"#;
         let (_, evs) = parse_codex_line(line, STATE_NONE);
         assert_eq!(evs.len(), 2);
@@ -978,7 +984,7 @@ mod tests {
 
     #[test]
     fn test_parse_turn_lifecycle() {
-        reset_open();
+        let _guard = reset_open();
         let (_, evs) = parse_codex_line(r#"{"type":"turn.started"}"#, STATE_MSG_OPEN);
         assert!(evs.is_empty());
 
@@ -1005,7 +1011,7 @@ mod tests {
 
     #[test]
     fn test_parse_error_events() {
-        reset_open();
+        let _guard = reset_open();
         // Transient reconnect notice: visible, non-terminal.
         let (_, evs) = parse_codex_line(
             r#"{"type":"error","message":"Reconnecting... 1/5"}"#,
@@ -1036,7 +1042,7 @@ mod tests {
 
     #[test]
     fn test_parse_todo_list() {
-        reset_open();
+        let _guard = reset_open();
         let started = r#"{"type":"item.started","item":{"id":"item_8","type":"todo_list","items":[{"text":"Scan","completed":false}]}}"#;
         let (_, evs) = parse_codex_line(started, STATE_NONE);
         assert_eq!(evs.len(), 1);
@@ -1053,7 +1059,7 @@ mod tests {
 
     #[test]
     fn test_parse_ignores_unknown_shapes() {
-        reset_open();
+        let _guard = reset_open();
         let (_, evs) = parse_codex_line(r#"{"type":"item.completed","item":{"id":"x","type":"something_new"}}"#, STATE_NONE);
         assert!(evs.is_empty());
     }
