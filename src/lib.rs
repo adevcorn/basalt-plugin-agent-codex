@@ -18,11 +18,11 @@
 use basalt_plugin_sdk::prelude::*;
 
 pub const PLUGIN_NAME: &str = "codex";
-pub const PLUGIN_VERSION: &str = "0.2.0";
+pub const PLUGIN_VERSION: &str = "0.2.1";
 
 basalt_plugin_meta! {
     name:              "codex",
-    version:           "0.2.0",
+    version:           "0.2.1",
     hook_flags:        CAP_AGENT_LAUNCHER,
     provides:          "agent-launcher@codex/v1",
     requires:          "",
@@ -115,6 +115,12 @@ pub fn prepare_codex_launch(req: &AgentLaunchRequest) -> AgentLaunchPreparation 
     if let Some(ref mcp_url) = req.mcp_url {
         extra_args.push("-c".to_string());
         extra_args.push(format!("mcp_servers.basalt.url=\"{mcp_url}\""));
+        // Basalt runs non-interactively and every MCP prompt would otherwise
+        // block on stdin and resolve as "user cancelled". Auto-approve tools
+        // on the Basalt server only; writes stay speculative until the user
+        // approves them in Basalt's review UI.
+        extra_args.push("-c".to_string());
+        extra_args.push("mcp_servers.basalt.default_tools_approval_mode=\"approve\"".to_string());
     }
 
     AgentLaunchPreparation {
@@ -776,6 +782,8 @@ mod tests {
                 "model_reasoning_effort=\"high\"",
                 "-c",
                 "mcp_servers.basalt.url=\"http://127.0.0.1:8080\"",
+                "-c",
+                "mcp_servers.basalt.default_tools_approval_mode=\"approve\"",
             ]
         );
         assert!(prep.workspace_files.is_empty());
